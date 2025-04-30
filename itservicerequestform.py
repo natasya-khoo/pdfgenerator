@@ -4,6 +4,7 @@ from tkcalendar import DateEntry
 import psycopg2
 from config import DB_CONFIG
 import tkinter.messagebox as messagebox
+import datetime
 
 def create_connection():
     """Establish and return a connection to the PostgreSQL database."""
@@ -266,6 +267,70 @@ class ITServiceRequestForm(tk.Frame):
             if conn:
                 cur.close()
                 conn.close()
+                self.reset_form()
+        
+    def reset_form(self):
+        # (A) Basic Information
+        self.requestor_name_entry.delete(0, tk.END)
+        self.company_entry.delete(0, tk.END)
+        # reset to today’s date
+        self.requested_date_entry.set_date(datetime.date.today())
+        self.computer_name_entry.delete(0, tk.END)
+        # default back to “Normal”
+        self.priority_combobox.current(1)
+
+        # (B) System & Network checks
+        for var in (
+            self.comp_purchases_var,
+            self.hardware_failure_var,
+            self.user_access_var,
+            self.data_recovery_var,
+            self.pc_peripheral_var,
+            self.email_service_var,
+            self.antivirus_var,
+            self.other_it_var,
+        ):
+            var.set(False)
+
+        # (C) Smile checks
+        for var in (
+            self.smile_system_var,
+            self.smile_new_module_var,
+            self.smile_troubleshoot_var,
+            self.smile_new_reports_var,
+            self.smile_other_var,
+            self.smile_report_custom_var,
+        ):
+            var.set(False)
+
+        # (D) PTS checks
+        for var in (
+            self.pts_system_var,
+            self.pts_new_module_var,
+            self.pts_troubleshoot_var,
+            self.pts_new_reports_var,
+            self.pts_other_var,
+            self.pts_report_custom_var,
+        ):
+            var.set(False)
+
+        # (E) Remarks
+        self.remarks_text.delete("1.0", tk.END)
+
+        # (F) IT Office Details
+        self.it_office_name_entry.delete(0, tk.END)
+        self.it_office_signature_entry.delete(0, tk.END)
+        self.it_office_date_entry.set_date(datetime.date.today())
+        self.certified_completed_var.set(False)
+        self.to_be_followed_up_var.set(False)
+
+        # (G) Requestor Confirmation
+        self.requestor_signature_entry.delete(0, tk.END)
+
+        # (H) Official Use
+        self.verified_by_entry.delete(0, tk.END)
+        self.hod_approval_entry.delete(0, tk.END)
+
 
 if __name__ == "__main__":
     root = tk.Tk()

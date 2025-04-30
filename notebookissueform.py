@@ -4,6 +4,7 @@ from tkcalendar import DateEntry
 import psycopg2
 from config import DB_CONFIG
 import tkinter.messagebox as messagebox
+import datetime
 
 
 def create_connection():
@@ -28,6 +29,8 @@ class NotebookIssueForm(tk.Frame):
         """
         super().__init__(parent)
         self.controller = controller
+        self.current_pk = None
+      
 
         # ------------------ Title Label in the navigation bar ------------------
         nav_frame = tk.Frame(self)
@@ -73,6 +76,9 @@ class NotebookIssueForm(tk.Frame):
         ttk.Label(basic_frame, text="Name:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
         self.name_entry = ttk.Entry(basic_frame, width=40)
         self.name_entry.grid(row=0, column=1, padx=5, pady=5)
+    
+        retrieve_btn = ttk.Button(basic_frame, text="Retrieve", command=self.retrieve_record)
+        retrieve_btn.grid(row=0, column=2, padx=5)
 
         ttk.Label(basic_frame, text="Asset ID:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
         self.asset_id_entry = ttk.Entry(basic_frame, width=30)
@@ -196,74 +202,212 @@ class NotebookIssueForm(tk.Frame):
         submit_button = ttk.Button(form_frame, text="Submit", command=self.submit_form)
         submit_button.grid(row=3, column=0, padx=10, pady=10)
 
+        
+
     def submit_form(self):
         """
-        Collect data from the form fields and insert it into the database.
+        If we've retrieved an existing record (self.current_pk != None),
+        update it.  Otherwise insert a new row and remember its PK.
         """
-        # Retrieve Basic Information
-        name = self.name_entry.get()
-        asset_id = self.asset_id_entry.get()
-        date_of_issue = self.date_of_issue_entry.get()  # format 'YYYY-MM-DD'
-        brand_model = self.brand_model_entry.get()
+        # --- Gather Basic Information ---
+        name            = self.name_entry.get()
+        asset_id        = self.asset_id_entry.get()
+        date_of_issue   = self.date_of_issue_entry.get()   # 'YYYY-MM-DD'
+        brand_model     = self.brand_model_entry.get()
 
-        # Retrieve Issued Items Data
-        issued_notebook = self.issued_notebook_var.get()
-        issued_mouse = self.issued_mouse_var.get()
-        issued_power_cable = self.issued_power_cable_var.get()
-        issued_power_supply_bag = self.issued_power_supply_bag_var.get()
-        issued_remarks = self.issued_remarks_text.get("1.0", tk.END).strip()
-        issued_date = self.issued_date_entry.get()      
-        received_date = self.received_date_entry.get()    
-        issued_by = self.issued_by_entry.get()            
-        received_by = self.received_by_entry.get()
-        issued_signature = self.issued_signature_entry.get()
-        received_signature = self.received_signature_entry.get()
+        # --- Gather Issued Items Data ---
+        issued_notebook        = self.issued_notebook_var.get()
+        issued_mouse           = self.issued_mouse_var.get()
+        issued_power_cable     = self.issued_power_cable_var.get()
+        issued_power_supply_bag= self.issued_power_supply_bag_var.get()
+        issued_remarks         = self.issued_remarks_text.get("1.0", tk.END).strip()
+        issued_date            = self.issued_date_entry.get()
+        received_date          = self.received_date_entry.get()
+        issued_by              = self.issued_by_entry.get()
+        received_by            = self.received_by_entry.get()
+        issued_signature       = self.issued_signature_entry.get()
+        received_signature     = self.received_signature_entry.get()
 
-        # Retrieve Returned Items Data
-        returned_notebook = self.returned_notebook_var.get()
-        returned_mouse = self.returned_mouse_var.get()
-        returned_power_cable = self.returned_power_cable_var.get()
+        # --- Gather Returned Items Data ---
+        returned_notebook         = self.returned_notebook_var.get()
+        returned_mouse            = self.returned_mouse_var.get()
+        returned_power_cable      = self.returned_power_cable_var.get()
         returned_power_supply_bag = self.returned_power_supply_bag_var.get()
-        returned_remarks = self.returned_remarks_text.get("1.0", tk.END).strip()
-        returned_date = self.returned_date_entry.get()
-        verified_date = self.verified_date_entry.get()
-        returned_by = self.returned_by_entry.get()
-        verified_by = self.verified_by_entry.get()        
-        returned_signature = self.returned_signature_entry.get()
-        verified_signature = self.verified_signature_entry.get()
+        returned_remarks          = self.returned_remarks_text.get("1.0", tk.END).strip()
+        returned_date             = self.returned_date_entry.get()
+        verified_date             = self.verified_date_entry.get()
+        returned_by               = self.returned_by_entry.get()
+        verified_by               = self.verified_by_entry.get()
+        returned_signature        = self.returned_signature_entry.get()
+        verified_signature        = self.verified_signature_entry.get()
 
         try:
-            connection = create_connection()
-            cursor = connection.cursor()
-            insert_query = """
-                INSERT INTO smbe.soitni
-                (name, asset_id, date_of_issue, brand_model,
-                 issued_notebook, issued_mouse, issued_power_cable, issued_power_supply_bag,
-                 issued_remarks, issued_date, received_date, issued_by, received_by, issued_signature, received_signature,
-                 returned_notebook, returned_mouse, returned_power_cable, returned_power_supply_bag,
-                 returned_remarks, returned_date, verified_date, returned_by, verified_by, returned_signature, verified_signature)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING *
-            """
-            cursor.execute(insert_query, (
-                name, asset_id, date_of_issue, brand_model,
-                issued_notebook, issued_mouse, issued_power_cable, issued_power_supply_bag,
-                issued_remarks, issued_date, received_date, issued_by, received_by, issued_signature, received_signature,
-                returned_notebook, returned_mouse, returned_power_cable, returned_power_supply_bag,
-                returned_remarks, returned_date, verified_date, returned_by, verified_by, returned_signature, verified_signature
-            ))
-            inserted_row = cursor.fetchone()
-            connection.commit()
-            print("Data inserted successfully!")
-            messagebox.showinfo("Success", "Data inserted successfully!")
-            print("Inserted row:", inserted_row)
-        except Exception as error:
-            print("Error while connecting to PostgreSQL:", error)
-            messagebox.showerror("Error", f"Error while connecting to PostgreSQL: {error}")
+            conn = create_connection()
+            cur  = conn.cursor()
+
+            if self.current_pk:
+                # — UPDATE path —
+                cur.execute("""
+                    UPDATE smbe.soitni
+                    SET
+                      name                    = %s,
+                      asset_id                = %s,
+                      date_of_issue           = %s,
+                      brand_model             = %s,
+                      issued_notebook         = %s,
+                      issued_mouse            = %s,
+                      issued_power_cable      = %s,
+                      issued_power_supply_bag = %s,
+                      issued_remarks          = %s,
+                      issued_date             = %s,
+                      received_date           = %s,
+                      issued_by               = %s,
+                      received_by             = %s,
+                      issued_signature        = %s,
+                      received_signature      = %s,
+                      returned_notebook         = %s,
+                      returned_mouse            = %s,
+                      returned_power_cable      = %s,
+                      returned_power_supply_bag = %s,
+                      returned_remarks          = %s,
+                      returned_date             = %s,
+                      verified_date             = %s,
+                      returned_by               = %s,
+                      verified_by               = %s,
+                      returned_signature        = %s,
+                      verified_signature        = %s
+                    WHERE name = %s
+                      AND asset_id = %s
+                      AND date_of_issue = %s
+                """, (
+                    name, asset_id, date_of_issue, brand_model,
+                    issued_notebook, issued_mouse, issued_power_cable, issued_power_supply_bag,
+                    issued_remarks, issued_date, received_date, issued_by, received_by,
+                    issued_signature, received_signature,
+                    returned_notebook, returned_mouse, returned_power_cable, returned_power_supply_bag,
+                    returned_remarks, returned_date, verified_date, returned_by, verified_by,
+                    returned_signature, verified_signature,
+                    *self.current_pk
+                ))
+                messagebox.showinfo("Success", "Record updated successfully.")
+
+            else:
+                # — INSERT path —
+                cur.execute("""
+                    INSERT INTO smbe.soitni (
+                      name, asset_id, date_of_issue, brand_model,
+                      issued_notebook, issued_mouse, issued_power_cable, issued_power_supply_bag,
+                      issued_remarks, issued_date, received_date, issued_by, received_by, issued_signature, received_signature,
+                      returned_notebook, returned_mouse, returned_power_cable, returned_power_supply_bag,
+                      returned_remarks, returned_date, verified_date, returned_by, verified_by, returned_signature, verified_signature
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING name, asset_id, date_of_issue
+                """, (
+                    name, asset_id, date_of_issue, brand_model,
+                    issued_notebook, issued_mouse, issued_power_cable, issued_power_supply_bag,
+                    issued_remarks, issued_date, received_date, issued_by, received_by, issued_signature, received_signature,
+                    returned_notebook, returned_mouse, returned_power_cable, returned_power_supply_bag,
+                    returned_remarks, returned_date, verified_date, returned_by, verified_by, returned_signature, verified_signature
+                ))
+                # grab the PK of the newly inserted row so future submits update:
+                self.current_pk = cur.fetchone()
+                messagebox.showinfo("Success", "New record created successfully.")
+
+            conn.commit()
+
+        except Exception as e:
+            messagebox.showerror("Database Error", str(e))
+
         finally:
-            if connection:
-                cursor.close()
-                connection.close()
+            if conn:
+                cur.close()
+                conn.close()
+
+       
+
+
+    def retrieve_record(self):
+        """Load the first matching row for name ILIKE %...% and fill the form."""
+        name = self.name_entry.get().strip()
+        if not name:
+            messagebox.showwarning("Input needed", "Please enter a name to retrieve.")
+            return
+
+        try:
+            conn = create_connection()
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT
+                  name, asset_id, date_of_issue, brand_model,
+                  issued_notebook, issued_mouse, issued_power_cable, issued_power_supply_bag,
+                  issued_remarks, issued_date, received_date, issued_by, received_by,
+                  issued_signature, received_signature,
+                  returned_notebook, returned_mouse, returned_power_cable, returned_power_supply_bag,
+                  returned_remarks, returned_date, verified_date, returned_by, verified_by,
+                  returned_signature, verified_signature
+                FROM smbe.soitni
+                WHERE name ILIKE %s
+                LIMIT 1
+            """, (f"%{name}%",))
+            row = cur.fetchone()
+            if not row:
+                messagebox.showinfo("No match", f"No records found for '{name}'.")
+                self.current_pk = None
+            else:
+                # unpack
+                (
+                  name, asset_id, doi, brand,
+                  in_nb, in_mouse, in_cable, in_bag,
+                  in_rem, in_date, rec_date, in_by, rec_by,
+                  in_sig, rec_sig,
+                  ret_nb, ret_mouse, ret_cable, ret_bag,
+                  ret_rem, ret_date, ver_date, ret_by, ver_by,
+                  ret_sig, ver_sig
+                ) = row
+
+                # store a simple pk to update later (e.g. name+asset_id+doi)
+                self.current_pk = (name, asset_id, doi)
+
+                # populate fields
+                self.name_entry.delete(0, tk.END)
+                self.name_entry.insert(0, name)
+                self.asset_id_entry.delete(0, tk.END)
+                self.asset_id_entry.insert(0, asset_id)
+                self.date_of_issue_entry.set_date(doi)
+                self.brand_model_entry.delete(0, tk.END)
+                self.brand_model_entry.insert(0, brand)
+
+                self.issued_notebook_var.set(in_nb)
+                self.issued_mouse_var.set(in_mouse)
+                self.issued_power_cable_var.set(in_cable)
+                self.issued_power_supply_bag_var.set(in_bag)
+                self.issued_remarks_text.delete("1.0", tk.END)
+                self.issued_remarks_text.insert("1.0", in_rem)
+                self.issued_date_entry.set_date(in_date)
+                self.received_date_entry.set_date(rec_date)
+                self.issued_by_entry.delete(0, tk.END);   self.issued_by_entry.insert(0, in_by)
+                self.received_by_entry.delete(0, tk.END); self.received_by_entry.insert(0, rec_by)
+                self.issued_signature_entry.delete(0, tk.END);   self.issued_signature_entry.insert(0, in_sig)
+                self.received_signature_entry.delete(0, tk.END); self.received_signature_entry.insert(0, rec_sig)
+
+                self.returned_notebook_var.set(ret_nb)
+                self.returned_mouse_var.set(ret_mouse)
+                self.returned_power_cable_var.set(ret_cable)
+                self.returned_power_supply_bag_var.set(ret_bag)
+                self.returned_remarks_text.delete("1.0", tk.END)
+                self.returned_remarks_text.insert("1.0", ret_rem)
+                self.returned_date_entry.set_date(ret_date)
+                self.verified_date_entry.set_date(ver_date)
+                self.returned_by_entry.delete(0, tk.END); self.returned_by_entry.insert(0, ret_by)
+                self.verified_by_entry.delete(0, tk.END); self.verified_by_entry.insert(0, ver_by)
+                self.returned_signature_entry.delete(0, tk.END); self.returned_signature_entry.insert(0, ret_sig)
+                self.verified_signature_entry.delete(0, tk.END); self.verified_signature_entry.insert(0, ver_sig)
+
+            conn.close()
+        except Exception as e:
+            messagebox.showerror("DB Error", str(e))
+
 
 # For testing the frame independently:
 if __name__ == "__main__":
