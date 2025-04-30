@@ -40,7 +40,7 @@ class TkinterApp(tk.Tk):
         self.config(background=selectionbar_color)
         
         # Use resource_path to get the absolute path of favicon.png
-        icon_path = resource_path("favicon.ico")
+        icon_path = resource_path("favicon.png")
         try:
             icon = tk.PhotoImage(file=icon_path)
             self.iconphoto(True, icon)
