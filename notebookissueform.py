@@ -312,12 +312,15 @@ class NotebookIssueForm(tk.Frame):
                 ))
                 # grab the PK of the newly inserted row so future submits update:
                 self.current_pk = cur.fetchone()
+                conn.commit()
                 messagebox.showinfo("Success", "New record created successfully.")
 
-            conn.commit()
+            
+            self.reset_form()
 
         except Exception as e:
             messagebox.showerror("Database Error", str(e))
+            
 
         finally:
             if conn:
@@ -408,6 +411,53 @@ class NotebookIssueForm(tk.Frame):
         except Exception as e:
             messagebox.showerror("DB Error", str(e))
 
+    def reset_form(self):
+        # forget the “loaded” PK
+        self.current_pk = None
+
+        # (A) Basic Information
+        self.name_entry.delete(0, tk.END)
+        self.asset_id_entry.delete(0, tk.END)
+        self.date_of_issue_entry.set_date(datetime.date.today())
+        self.brand_model_entry.delete(0, tk.END)
+
+        # (B) Issued Items
+        for var in (
+            self.issued_notebook_var,
+            self.issued_mouse_var,
+            self.issued_power_cable_var,
+            self.issued_power_supply_bag_var,
+        ):
+            var.set(False)
+        self.issued_remarks_text.delete("1.0", tk.END)
+        self.issued_date_entry.set_date(datetime.date.today())
+        self.received_date_entry.set_date(datetime.date.today())
+        for entry in (
+            self.issued_by_entry,
+            self.received_by_entry,
+            self.issued_signature_entry,
+            self.received_signature_entry,
+        ):
+            entry.delete(0, tk.END)
+
+        # (C) Returned Items
+        for var in (
+            self.returned_notebook_var,
+            self.returned_mouse_var,
+            self.returned_power_cable_var,
+            self.returned_power_supply_bag_var,
+        ):
+            var.set(False)
+        self.returned_remarks_text.delete("1.0", tk.END)
+        self.returned_date_entry.set_date(datetime.date.today())
+        self.verified_date_entry.set_date(datetime.date.today())
+        for entry in (
+            self.returned_by_entry,
+            self.verified_by_entry,
+            self.returned_signature_entry,
+            self.verified_signature_entry,
+        ):
+            entry.delete(0, tk.END)
 
 # For testing the frame independently:
 if __name__ == "__main__":

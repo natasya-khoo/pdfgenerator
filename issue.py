@@ -5,6 +5,7 @@ import smtplib
 from email.message import EmailMessage
 from config import DB_CONFIG
 import datetime
+import threading
 
 def create_connection():
     """Establish and return a connection to the PostgreSQL database."""
@@ -229,46 +230,64 @@ Description: {description}
 
     def submit_form(self):
         # Gather data from the form.
-        ticket_no = self.ticket_label.cget("text").split(":")[-1].strip()
-        name = self.name_entry.get().strip()
-        department = self.department_entry.get().strip()
-        category = self.category_var.get().strip()
-        detail = self.detail_cb.get().strip()
-        priority = self.priority_var.get().strip()  # "High", "Medium", or "Low"
-        summary = self.summary_entry.get().strip()
+        ticket_no   = self.ticket_label.cget("text").split(":")[-1].strip()
+        name        = self.name_entry.get().strip()
+        department  = self.department_entry.get().strip()
+        category    = self.category_var.get().strip()
+        detail      = self.detail_cb.get().strip()
+        priority    = self.priority_var.get().strip()
+        summary     = self.summary_entry.get().strip()
         description = self.description_text.get("1.0", tk.END).strip()
-        attachment = self.attachment_path
-        status  = "Open"
-        date = datetime.datetime.now().strftime("%Y-%m-%d")
+        attachment  = self.attachment_path
+        status      = "Open"
+        date        = datetime.datetime.now().strftime("%Y-%m-%d")
 
         # Validate required fields.
         if not all([name, department, category, detail, priority, summary, description]):
             messagebox.showerror("Error", "Please complete all required fields.")
             return
 
+        connection = None
         try:
             connection = create_connection()
-            cursor = connection.cursor()
+            cursor     = connection.cursor()
             insert_query = """
                 INSERT INTO smbe.ticket 
-                (ticket_id, name, department, category, detail, priority, summary, description, attachment,status,date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s)
+                (ticket_id, name, department, category, detail, priority, summary, description, attachment, status, date)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING ticket_id;
             """
             cursor.execute(insert_query, (
-                ticket_no, name, department, category, detail, priority, summary, description, attachment, status,date
+                ticket_no, name, department, category, detail,
+                priority, summary, description, attachment,
+                status, date
             ))
-            returned_ticket = cursor.fetchone()
+            returned_ticket = cursor.fetchone()[0]
+            returned_ticket = returned_ticket.strip() 
             connection.commit()
-            messagebox.showinfo("Success", f"Ticket {returned_ticket[0].strip()} submitted successfully!")
-            self.send_notification_email(ticket_no, name, department, category, detail, priority, summary, description)
+
+            messagebox.showinfo("Success", f"Ticket {returned_ticket} submitted successfully!")
+
             self.reset_form()
+
+
+            threading.Thread(
+                target=self.send_notification_email,
+                args=(
+                    returned_ticket, name, department,
+                    category, detail, priority,
+                    summary, description
+                ),
+                daemon=True
+            ).start()
+
         except Exception as error:
             messagebox.showerror("Database Error", f"Error while inserting data: {error}")
         finally:
             if connection:
                 cursor.close()
                 connection.close()
+
 
     def reset_form(self):
         # Create a new ticket base and update the ticket label.
