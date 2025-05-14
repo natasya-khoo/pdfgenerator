@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from tkcalendar import DateEntry  # Added for calendar widget
+from tkcalendar import DateEntry
 import psycopg2
 from config import DB_CONFIG
 import datetime
@@ -19,6 +19,7 @@ class UserSystemAccessForm(tk.Frame):
     def __init__(self, parent, controller=None):
         super().__init__(parent)
         self.controller = controller
+        self.current_pk = None
         self.build_ui()
 
     def build_ui(self):
@@ -35,8 +36,9 @@ class UserSystemAccessForm(tk.Frame):
         canvas.pack(side="left", fill="both", expand=True)
 
         self.inner_frame = tk.Frame(canvas)
-        canvas.create_window((4, 4), window=self.inner_frame, anchor="nw")
+        self._win = canvas.create_window((4, 4), window=self.inner_frame, anchor="nw")
         self.inner_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(self._win, width=e.width))
         canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
 
         # Company Information
@@ -54,8 +56,6 @@ class UserSystemAccessForm(tk.Frame):
         self.fullname_entry = ttk.Entry(personal_frame, width=50)
         self.fullname_entry.grid(row=0, column=1, padx=5, pady=5)
         ttk.Label(personal_frame, text="Dept:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        retrieve_btn = ttk.Button(personal_frame, text="Retrieve", command=self.retrieve_record)
-        retrieve_btn.grid(row=0, column=2, padx=5)
         self.dept_entry = ttk.Entry(personal_frame, width=30)
         self.dept_entry.grid(row=1, column=1, padx=5, pady=5)
         ttk.Label(personal_frame, text="Designation:").grid(row=1, column=2, sticky="w", padx=5, pady=5)
@@ -64,6 +64,8 @@ class UserSystemAccessForm(tk.Frame):
         ttk.Label(personal_frame, text="Mobile No:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
         self.mobileno_entry = ttk.Entry(personal_frame, width=30)
         self.mobileno_entry.grid(row=2, column=1, padx=5, pady=5)
+        retrieve_btn = ttk.Button(personal_frame, text="Retrieve", command=self.retrieve_record)
+        retrieve_btn.grid(row=0, column=2, padx=5)
 
         # Staff Account Creation
         account_frame = ttk.LabelFrame(self.inner_frame, text="(B) Staff Account Creation")
@@ -73,7 +75,6 @@ class UserSystemAccessForm(tk.Frame):
         self.smile_var = tk.BooleanVar()
         self.pts_var = tk.BooleanVar()
         self.email_var = tk.BooleanVar()
-
         checks = [
             ("Door Access", self.door_access_var),
             ("Infotech Account", self.infotech_var),
@@ -124,219 +125,151 @@ class UserSystemAccessForm(tk.Frame):
         submit_button.grid(row=5, column=0, padx=10, pady=10)
 
     def submit_form(self):
-        # Gather values
         fullname         = self.fullname_entry.get().strip()
         dept             = self.dept_entry.get().strip()
         designation      = self.designation_entry.get().strip()
-        try:
-            mobileno     = int(self.mobileno_entry.get().strip())
-        except ValueError:
-            mobileno     = None
-
-        com              = self.com_entry.get().strip()       # maps to `com`
-        company          = com                                # or use a separate entry if you add one
-
+        mobileno         = int(self.mobileno_entry.get().strip())
+        com              = self.com_entry.get().strip()
         dooraccess       = self.door_access_var.get()
         infotech         = self.infotech_var.get()
         smile            = self.smile_var.get()
         pts              = self.pts_var.get()
         email_acc        = self.email_var.get()
-
-        # Authorization
         authorizer       = self.authorizer_entry.get().strip()
         signature        = self.auth_signature_entry.get().strip()
-        auth_date        = self.auth_date_entry.get_date().isoformat()  # maps to `date`
-
-        # Termination Request
+        auth_date        = self.auth_date_entry.get_date().isoformat()
         terminate_name      = self.terminate_authorizer_entry.get().strip()
         terminate_signature = self.terminate_signature_entry.get().strip()
         terminate_date      = self.terminate_date_entry.get_date().isoformat()
-
-        # IT Dept Termination
         terminate_it        = self.terminated_by_entry.get().strip()
         it_date             = self.terminated_date_entry.get_date().isoformat()
+
+        cols = [
+            "fullname", "dept", "designation", "mobileno", "com",
+            "dooraccess", "infotech", "smile", "pts", "email",
+            "authorizername", "signature", "date",
+            "terminate_name", "terminate_signature", "terminate_date",
+            "terminate_it", "it_date"
+        ]
+        vals = [
+            fullname, dept, designation, mobileno, com,
+            dooraccess, infotech, smile, pts, email_acc,
+            authorizer, signature, auth_date,
+            terminate_name, terminate_signature, terminate_date,
+            terminate_it, it_date
+        ]
 
         try:
             conn = create_connection()
             cur  = conn.cursor()
-            cur.execute(
-                """
-                INSERT INTO smbe.soitua
-                  (fullname,
-                   dept,
-                   mobileno,
-                   com,
-                   dooraccess,
-                   infotech,
-                   smile,
-                   pts,
-                   email,
-                   authorizername,
-                   signature,
-                   date,
-                   designation,
-                   company,
-                   terminate_name,
-                   terminate_signature,
-                   terminate_date,
-                   terminate_it,
-                   it_date)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (fullname,
-                 dept,
-                 mobileno,
-                 com,
-                 dooraccess,
-                 infotech,
-                 smile,
-                 pts,
-                 email_acc,
-                 authorizer,
-                 signature,
-                 auth_date,
-                 designation,
-                 company,
-                 terminate_name,
-                 terminate_signature,
-                 terminate_date,
-                 terminate_it,
-                 it_date)
-            )
+            if self.current_pk:
+                # UPDATE path
+                set_clause = ", ".join(f"{c} = %s" for c in cols)
+                query = f"UPDATE smbe.soitua SET {set_clause} WHERE fullname = %s" 
+                cur.execute(query, vals + [self.current_pk[0]])
+                messagebox.showinfo("Success", "Record updated successfully.")
+            else:
+                # INSERT path
+                placeholders = ", ".join(["%s"] * len(vals))
+                query = f"INSERT INTO smbe.soitua ({', '.join(cols)}) VALUES ({placeholders}) RETURNING fullname, mobileno"
+                cur.execute(query, vals)
+                self.current_pk = cur.fetchone()
+                messagebox.showinfo("Success", "New record created successfully.")
             conn.commit()
-            messagebox.showinfo("DB", "Data inserted successfully!")
             self.reset_form()
-        except Exception as error:
-            messagebox.showerror("DB Error", f"Error while connecting to PostgreSQL:\n{error}")
+        except Exception as e:
+            messagebox.showerror("Database Error", str(e))
         finally:
             if conn:
                 cur.close()
                 conn.close()
-    
-    def reset_form(self):
-        # Text entries
-        for entry in (
-            self.com_entry,
-            self.fullname_entry,
-            self.dept_entry,
-            self.designation_entry,
-            self.mobileno_entry,
-            self.authorizer_entry,
-            self.auth_signature_entry,
-            self.terminate_authorizer_entry,
-            self.terminate_signature_entry,
-            self.terminated_by_entry,
-        ):
-            entry.delete(0, tk.END)
-
-        # Date pickers → reset to today
-        today = datetime.date.today().isoformat()
-        self.auth_date_entry.set_date(today)
-        self.terminate_date_entry.set_date(today)
-        self.terminated_date_entry.set_date(today)
-
-        # Checkboxes → uncheck all
-        for var in (
-            self.door_access_var,
-            self.infotech_var,
-            self.smile_var,
-            self.pts_var,
-            self.email_var,
-        ):
-            var.set(False)
 
     def retrieve_record(self):
         name = self.fullname_entry.get().strip()
         if not name:
-            messagebox.showwarning("Input needed", "Please enter a full name to retrieve.")
+            messagebox.showwarning("Input needed", "Please enter a name to retrieve.")
             return
-
         try:
             conn = create_connection()
             cur = conn.cursor()
-            cur.execute("""
-                SELECT
-                  fullname, dept, mobileno, com,
-                  dooraccess, infotech, smile, pts, email,
-                  authorizername, signature, date, designation, company,
-                  terminate_name, terminate_signature, terminate_date,
-                  terminate_it, it_date
-                FROM smbe.soitua
-                WHERE fullname ILIKE %s
-                LIMIT 1
-            """, (f"%{name}%",))
+            cur.execute(
+                """
+                SELECT fullname, dept, designation, mobileno, com,
+                       dooraccess, infotech, smile, pts, email,
+                       authorizername, signature, date,
+                       terminate_name, terminate_signature, terminate_date,
+                       terminate_it, it_date
+                  FROM smbe.soitua
+                 WHERE fullname ILIKE %s
+                 LIMIT 1
+                """, (f"%{name}%",)
+            )
             row = cur.fetchone()
             cur.close()
             conn.close()
-
             if not row:
                 messagebox.showinfo("No match", f"No record found for '{name}'.")
+                self.current_pk = None
                 return
-
-            # unpack into distinct variables
             (
-                fullname, dept, mobileno, com,
+                fullname, dept, designation, mobileno, com,
                 dooraccess, infotech, smile, pts, email_acc,
-                authorizer, signature, auth_date, designation, company,
+                authorizer, signature, auth_date,
                 terminate_name, terminate_signature, terminate_date,
                 terminate_it, it_date
             ) = row
-
-            # populate all fields:
-            self.fullname_entry.delete(0, tk.END)
-            self.fullname_entry.insert(0, fullname)
-
-            self.dept_entry.delete(0, tk.END)
-            self.dept_entry.insert(0, dept)
-
-            self.mobileno_entry.delete(0, tk.END)
-            self.mobileno_entry.insert(0, str(mobileno) if mobileno is not None else "")
-
-            self.com_entry.delete(0, tk.END)
-            self.com_entry.insert(0, com)
-
+            # store pk
+            self.current_pk = (fullname, mobileno)
+            # populate fields
+            self.fullname_entry.delete(0, tk.END);     self.fullname_entry.insert(0, fullname)
+            self.dept_entry.delete(0, tk.END);         self.dept_entry.insert(0, dept)
+            self.designation_entry.delete(0, tk.END);  self.designation_entry.insert(0, designation)
+            self.mobileno_entry.delete(0, tk.END);     self.mobileno_entry.insert(0, str(mobileno) if mobileno else "")
+            self.com_entry.delete(0, tk.END);          self.com_entry.insert(0, com)
             self.door_access_var.set(dooraccess)
             self.infotech_var.set(infotech)
             self.smile_var.set(smile)
             self.pts_var.set(pts)
             self.email_var.set(email_acc)
-
-            self.authorizer_entry.delete(0, tk.END)
-            self.authorizer_entry.insert(0, authorizer)
-
-            self.auth_signature_entry.delete(0, tk.END)
-            self.auth_signature_entry.insert(0, signature)
-
+            self.authorizer_entry.delete(0, tk.END);  self.authorizer_entry.insert(0, authorizer)
+            self.auth_signature_entry.delete(0, tk.END); self.auth_signature_entry.insert(0, signature)
             self.auth_date_entry.set_date(auth_date)
-
-            self.designation_entry.delete(0, tk.END)
-            self.designation_entry.insert(0, designation)
-
-            self.terminate_authorizer_entry.delete(0, tk.END)
-            self.terminate_authorizer_entry.insert(0, terminate_name)
-
-            self.terminate_signature_entry.delete(0, tk.END)
-            self.terminate_signature_entry.insert(0, terminate_signature)
-
+            self.terminate_authorizer_entry.delete(0, tk.END); self.terminate_authorizer_entry.insert(0, terminate_name)
+            self.terminate_signature_entry.delete(0, tk.END); self.terminate_signature_entry.insert(0, terminate_signature)
             self.terminate_date_entry.set_date(terminate_date)
-
-            self.terminated_by_entry.delete(0, tk.END)
-            self.terminated_by_entry.insert(0, terminate_it)
-
+            self.terminated_by_entry.delete(0, tk.END); self.terminated_by_entry.insert(0, terminate_it)
             self.terminated_date_entry.set_date(it_date)
-
         except Exception as e:
-            messagebox.showerror("DB Error", f"Error retrieving record:\n{e}")
+            messagebox.showerror("DB Error", str(e))
 
-
-
-
+    def reset_form(self):
+        # clear loaded pk
+        self.current_pk = None
+        # clear entries
+        for widget in (
+            self.fullname_entry, self.dept_entry, self.designation_entry,
+            self.mobileno_entry, self.com_entry, self.authorizer_entry,
+            self.auth_signature_entry, self.terminate_authorizer_entry,
+            self.terminate_signature_entry, self.terminated_by_entry
+        ):
+            widget.delete(0, tk.END)
+        # reset dates
+        today = datetime.date.today().isoformat()
+        self.auth_date_entry.set_date(today)
+        self.terminate_date_entry.set_date(today)
+        self.terminated_date_entry.set_date(today)
+        # clear checkboxes
+        for var in (
+            self.door_access_var, self.infotech_var, self.smile_var,
+            self.pts_var, self.email_var
+        ):
+            var.set(False)
 
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("User System Access Form")
     root.geometry("1100x900")
-    UserSystemAccessForm(root, None).pack(fill="both", expand=True)
+    app = UserSystemAccessForm(root, None)
+    app.pack(fill="both", expand=True)
     root.mainloop()
